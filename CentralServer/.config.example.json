@@ -1,6 +1,7 @@
 {
   "debug": {
     "enabled": false,
+    "rate_limiter": true,
     "use_test_db": false
   },
   "logging": {
@@ -21,7 +22,7 @@
     "database": "projectscars"
   },
   "test_database": {
-    "filepath": "./tests/data/test.db"
+    "filepath": "./centralserver.db"
   },
   "authentication": {
     "signing_secret_key": "UPDATE_THIS_VALUE",
