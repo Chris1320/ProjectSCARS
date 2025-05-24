@@ -273,6 +273,33 @@ async def delete_user_avatar_endpoint(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="User does not have an avatar set.",
         )
+    
+
+@router.patch("/update/me/avatar")
+async def update_self_user_avatar_endpoint(
+    img: UploadFile,
+    token: logged_in_dep,
+    session: Annotated[Session, Depends(get_db_session)],
+) -> UserPublic:
+    """Update a user's avatar.
+
+    Args:
+        img: The new avatar image.
+        token: The access token of the logged-in user.
+        session: The session to the database.
+
+    Returns:
+        The updated user information.
+    """
+
+    if not await verify_user_permission("users:global:modify", session, token):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have permission to update user profiles.",
+        )
+
+    logger.debug("user %s is updating their user profile...", token.id)
+    return await update_user_avatar(token.id, await img.read(), session)
 
 
 @router.patch("/update/role")

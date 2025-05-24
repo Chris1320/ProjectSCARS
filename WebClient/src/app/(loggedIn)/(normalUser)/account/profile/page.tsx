@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from "react";
 
-import { Box, Divider, Group, Flex, Stack, Space } from "@mantine/core";
-import { Avatar, Title, Text, TextInput } from "@mantine/core";
-import { Anchor, Button, FileButton, Modal, Switch } from "@mantine/core";
+import { Box, Divider, Group, Flex, Stack, Space,
+         Avatar, Title, Text, TextInput, Modal,
+         Anchor, Button, FileButton, Switch } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
+
 import { CentralServerGetUserInfo } from "@/lib/api/auth";
-import { CentralServerGetUserAvatar } from "@/lib/api/user";
+import { CentralServerGetUserAvatar, CentralServerUploadUserAvatar } from "@/lib/api/user";
 import { UserPublicType } from "@/lib/types";
 
 export default function ProfilePage() {
@@ -15,8 +16,24 @@ export default function ProfilePage() {
     const [userInfo, setUserInfo] = useState<UserPublicType | null>(null)
     const [opened, { open, close }] = useDisclosure(false);
 
-    // TODO: Implement the file upload logic for uploading user avatars.
-    const uploadAvatar = () => { }
+    const uploadAvatar = async (file: File | null) => {
+        if (file === null) {
+            console.debug("No file selected, skipping upload...");
+            return;
+        }
+        console.debug("Uploading avatar...");
+        const updatedUserInfo = await CentralServerUploadUserAvatar(file);
+        setUserInfo(updatedUserInfo);
+        console.debug("Avatar uploaded successfully.");
+
+        setAvatarBlobUrl((prevUrl) => {
+            if (prevUrl) {
+                URL.revokeObjectURL(prevUrl);
+            }
+            return URL.createObjectURL(file);
+        });
+        console.debug("Avatar blob URL set successfully.");
+    }
 
     useEffect(() => {
         console.debug("ProfilePage useEffect started");
@@ -50,13 +67,19 @@ export default function ProfilePage() {
             });
         };
     }, []);
+
     console.debug("Rendering ProfilePage");
+
     return (
         <div>
             <Box mx="auto" p="lg">
                 <Title order={3} mb="sm">Profile</Title>
                 <Divider mb="lg" />
-                <Flex justify="space-between" align="flex-start" wrap="wrap" w="100%">
+                <Flex
+                    justify="space-between"
+                    align="flex-start"
+                    wrap="wrap" w="100%"
+                >
                     <Group gap={20}>
                         <Avatar
                             variant="light"
@@ -66,28 +89,37 @@ export default function ProfilePage() {
                             src={avatarBlobUrl ? avatarBlobUrl : undefined}
                         />
                         <Stack gap={0}>
-                            <Text size="sm" c="dimmed">Canteen Manager</Text>
-                            <Text fw={600} size="lg">Brian Federin</Text>
+                            <Text size="sm" c="dimmed">{userInfo?.roleId}</Text>
+                            <Text fw={600} size="lg">{userInfo?.nameFirst}</Text>
                             <Text size="sm" c="dimmed">{userInfo?.username}</Text>
                         </Stack>
                     </Group>
 
-                    <FileButton onChange={uploadAvatar} accept="image/png,image/jpeg">
-                        {(props) => (
-                            <Button {...props} variant="outline" size="sm">
-                                Edit Profile
-                            </Button>
-                        )}
+                    <FileButton
+                        onChange={uploadAvatar} accept="image/png,image/jpeg">
+                            {(props) => (
+                                <Button {...props} variant="outline" size="sm">
+                                    Edit Profile
+                                </Button>
+                            )}
                     </FileButton>
                 </Flex>
 
                 <Divider my="lg" />
+
                 <Title order={4} mb="sm">Account Security</Title>
-                <Flex justify="space-between" align="end" w="100%" gap="lg">
-                    <Stack w="100%" style={{ flexGrow: 1, minWidth: 0 }}>
+                <Flex
+                    justify="space-between"
+                    align="end" w="100%"
+                    gap="lg"
+                >
+                    <Stack
+                        w="100%"
+                        style={{ flexGrow: 1, minWidth: 0 }}
+                    >
                         <TextInput
                             label="Email"
-                            placeholder="brianfederin@gmail.com"
+                            value={userInfo?.email || ""}
                             size="sm"
                             disabled
                             w="100%"
@@ -112,8 +144,15 @@ export default function ProfilePage() {
 
                 <Space h="md" />
 
-                <Flex justify="space-between" align="end" w="100%" gap="lg">
-                    <Stack w="100%" style={{ flexGrow: 1, minWidth: 0 }}>
+                <Flex
+                    justify="space-between"
+                    align="end" w="100%"
+                    gap="lg"
+                >
+                    <Stack
+                        w="100%"
+                        style={{ flexGrow: 1, minWidth: 0 }}
+                    >
                         <TextInput
                             label="Password"
                             value="********"
@@ -125,7 +164,10 @@ export default function ProfilePage() {
                         />
                     </Stack>
 
-                    <Modal opened={opened} onClose={close} title="Update Password" centered>
+                    <Modal
+                        opened={opened} onClose={close}
+                        title="Update Password" centered
+                    >
                         <Stack>
                             <TextInput
                                 label="Current Password"
@@ -161,7 +203,7 @@ export default function ProfilePage() {
                                     cursor: "pointer"
                                 }}
                             >
-                                Forgotten your password?
+                                Forgot your password?
                             </Anchor>
                         </Stack>
                     </Modal>
@@ -183,16 +225,20 @@ export default function ProfilePage() {
 
                 <Space h="md" />
 
-                <Group justify="space-between" mt="md">
+                <Group
+                    justify="space-between"
+                    mt="md"
+                >
                     <Box>
                         <Text fw={500} size="sm">2-Step Verification</Text>
                         <Text size="xs" c="dimmed">
                             Add an additional layer of security to your account during login.
                         </Text>
                     </Box>
-                    <Switch />
-                </Group>
 
+                    <Switch />
+
+                </Group>
             </Box>
         </div>
     );
