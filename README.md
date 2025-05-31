@@ -373,6 +373,55 @@ containerized environment using Docker or Podman.
    }
    ```
 
+**Garage S3-Compatible Object Store**
+
+Garage is another free and open-source S3-compatible object store
+that can be used with the central server. It is similar to MinIO,
+but it is designed to be lightweight and easy to use. To use Garage,
+you can follow the steps below:
+
+1. Create a `.env` file in `./CentralServer/system/garage/` using
+   the example file.
+
+   ```bash
+   cd ./system/garage/
+   cp .env.example .env
+   ```
+
+2. Adjust the environment variables in
+   `./CentralServer/system/garage/.env`.
+
+3. Run the Garage container.
+
+   ```bash
+   docker-compose up -d # Run this if you are using Docker.
+   podman-compose up -d # Run this if you are using Podman.
+   cd ../..
+   ```
+
+4. If successful, you should be able to access the s3manager dashboard at
+   `http://localhost:8084`.
+
+5. Edit `./CentralServer/config.json` and adjust the `object_store`
+   to match the following structure:
+
+   ```jsonc
+   {
+     /* ... */
+     "object_store": {
+       "type": "garage",
+       "config": {
+         "endpoint": "localhost:9000",
+         "access_key": "YOUR_ACCESS_KEY",
+         "secret_key": "YOUR_SECRET_KEY",
+         "secure": false,
+       },
+     },
+     /* ... */
+   }
+   ```
+
+
 ###### Central Server Environment Variables
 
 The following environment variables are used by the central server

@@ -6,6 +6,7 @@ services:
       - "8084:8084"
     volumes:
       - centralserver-minio_data:/data
+    restart: unless-stopped
     env_file:
       - .env
     command: server /data --console-address ":8084"
