@@ -99,6 +99,7 @@ async def authenticate_user(
     username: str, plaintext_password: str, login_ip: str | None, session: Session
 ) -> User | tuple[int, str]:
     """Find the user in the database and verify their password.
+    This function will not authenticate deactivated and locked out users.
 
     Args:
         username: The username of the user to authenticate.
@@ -118,6 +119,10 @@ async def authenticate_user(
     if not found_user:
         logger.debug("Authentication failed: %s (user not found)", username)
         return (status.HTTP_401_UNAUTHORIZED, "User not found.")
+
+    if found_user.deactivated:
+        logger.debug("User %s is deactivated", username)
+        return (status.HTTP_403_FORBIDDEN, "User is deactivated.")
 
     # Check if the user is locked out.
     if (

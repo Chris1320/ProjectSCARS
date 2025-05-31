@@ -199,6 +199,8 @@ class Mailing:
         from_address: str | None = None,
         username: str | None = None,
         password: str | None = None,
+        templates_dir: str | None = None,
+        templates_encoding: str | None = None,
     ) -> None:
         """The mailing configuration.
 
@@ -209,6 +211,8 @@ class Mailing:
             from_address: The email address to use as the sender.
             username: The username for the SMTP server.
             password: The password for the SMTP server.
+            templates_dir: The directory containing email templates. (Default: "./templates/mail/")
+            templates_encoding: The encoding of the email templates. (Default: "utf-8")
         """
 
         self.enabled: bool = enabled or False
@@ -217,6 +221,10 @@ class Mailing:
         self.from_address: str = from_address  # type: ignore
         self.username: str = username  # type: ignore
         self.password: str = password  # type: ignore
+        self.templates_dir: str = templates_dir or os.path.join(
+            os.getcwd(), "templates", "mail"
+        )
+        self.templates_encoding: str = templates_encoding or "utf-8"
 
         if self.enabled and (
             not self.server or not self.port or not self.username or not self.password
@@ -410,6 +418,8 @@ def read_config(config: dict[str, Any]) -> AppConfig:
             from_address=mailing_config.get("from_address", None),
             username=mailing_config.get("username", None),
             password=mailing_config.get("password", None),
+            templates_dir=mailing_config.get("templates_dir", None),
+            templates_encoding=mailing_config.get("templates_encoding", None),
         ),
     )
 

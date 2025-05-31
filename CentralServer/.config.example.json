@@ -38,10 +38,17 @@
         "recovery_token_expire_minutes": 15
     },
     "security": {
-        "allow_origins": ["http://127.0.0.1:8080", "http://localhost:8080"],
+        "allow_origins": [
+            "http://127.0.0.1:8080",
+            "http://localhost:8080"
+        ],
         "allow_credentials": true,
-        "allow_methods": ["*"],
-        "allow_headers": ["*"],
+        "allow_methods": [
+            "*"
+        ],
+        "allow_headers": [
+            "*"
+        ],
         "failed_login_lockout_attempts": 5,
         "failed_login_notify_attempts": 2,
         "failed_login_lockout_minutes": 15
@@ -52,6 +59,8 @@
         "port": 587,
         "from_address": "",
         "username": "",
-        "password": ""
+        "password": "",
+        "templates_dir": "./templates/mail/",
+        "templates_encoding": "utf-8"
     }
 }

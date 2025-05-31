@@ -16,8 +16,9 @@ from centralserver.internals.auth_handler import (
 )
 from centralserver.internals.config_handler import app_config
 from centralserver.internals.db_handler import get_db_session
+from centralserver.internals.exceptions import EmailTemplateNotFoundError
 from centralserver.internals.logger import LoggerFactory
-from centralserver.internals.mail_handler import send_mail
+from centralserver.internals.mail_handler import get_template, send_mail
 from centralserver.internals.models.role import Role
 from centralserver.internals.models.token import DecodedJWTToken, JWTToken
 from centralserver.internals.models.user import (
@@ -152,7 +153,10 @@ async def request_password_recovery(
 
     if not user:
         logger.warning("User not found for password recovery: %s", username)
-        return {"message": "ok"}
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found.",
+        )
 
     if not user.email:
         logger.warning(
@@ -190,30 +194,27 @@ async def request_password_recovery(
     )
     logger.debug("Generated recovery link for user %s: %s", username, recovery_link)
 
-    send_mail(
-        to_address=user.email,
-        subject=f"{info.Program.name} | Password Recovery Request",
-        text=f"""\
-Hello {user.nameFirst or user.username},
-You have requested a password recovery for your account on {info.Program.name}.
-Please click the link below and follow the instructions to reset your password:
+    try:
+        send_mail(
+            to_address=user.email,
+            subject=f"{info.Program.name} | Password Recovery Request",
+            text=get_template("password_recovery.txt").format(
+                name=user.nameFirst or user.username,
+                app_name=info.Program.name,
+                recovery_link=recovery_link,
+                expiration_time=app_config.authentication.recovery_token_expire_minutes,
+            ),
+            html=get_template("password_recovery.html").format(
+                name=user.nameFirst or user.username,
+                app_name=info.Program.name,
+                recovery_link=recovery_link,
+                expiration_time=app_config.authentication.recovery_token_expire_minutes,
+            ),
+        )
 
-        {recovery_link}
-
-This link will expire in {app_config.authentication.recovery_token_expire_minutes} minutes.
-If you did not request this, please ignore this email.
-""",
-        html=f"""\
-<p>Hello {user.nameFirst or user.username},</p>
-<p>You have requested a password recovery for your account on {info.Program.name}.</p>
-<p>Please click the link below and follow the instructions to reset your password:</p>
-        <a href="{recovery_link}" align="center">
-            Reset Password
-        </a>
-<p>This link will expire in {app_config.authentication.recovery_token_expire_minutes} minutes.</p>
-<p>If you did not request this, please ignore this email.</p>
-""",
-    )
+    except EmailTemplateNotFoundError:
+        logger.error("Template for password recovery email not found.")
+        logger.debug("User's password recovery link: %s", recovery_link)
 
     return {"message": "ok"}
 
@@ -246,6 +247,12 @@ async def reset_password(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid or missing recovery token or user.",
+        )
+
+    if user.deactivated:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User account is deactivated.",
         )
 
     password_is_valid, password_err = await validate_password(data.new_password)

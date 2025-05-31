@@ -50,49 +50,16 @@ async def get_user_profile_endpoint(
         The user's profile information.
     """
 
+    if not await verify_user_permission("users:self:read", session, token):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have permission to view your profile.",
+        )
+
     logger.debug("Fetching user profile for user ID: %s", token.id)
     return UserPublic.model_validate(
         session.exec(select(User).where(User.id == token.id)).one()
     )
-
-
-@router.patch("/me/update")
-async def update_user_profile_endpoint(
-    updated_user_info: UserUpdate,
-    token: logged_in_dep,
-    session: Annotated[Session, Depends(get_db_session)],
-) -> UserPublic:
-    """Update the logged-in user's profile information.
-
-    Args:
-        updated_user_info: The new user information.
-        token: The access token of the logged-in user.
-        session: The session to the database.
-
-    Returns:
-        The newly updated user information.
-
-    Raises:
-        HTTPException: Raised when the user does not have permission to update their profile.
-    """
-
-    if not await verify_user_permission("users:global:selfupdate", session, token):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You do not have permission to update your profile.",
-        )
-
-    if token.id != updated_user_info.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You can only update your own profile. Use `/users/update` if you want to update another user's profile.",
-        )
-
-    logger.debug("user %s is updating their profile...", token.id)
-    return await update_user_info(updated_user_info, session)
-
-
-##### Admin user routes #####
 
 
 @router.get("/all", status_code=status.HTTP_200_OK, response_model=list[UserPublic])
@@ -142,10 +109,10 @@ async def get_user_endpoint(
     if not await verify_user_permission("users:global:read", session, token):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="You do not have permission to view users.",
+            detail="You do not have permission to view users' information.",
         )
 
-    logger.debug("user %s fetching all user info", token.id)
+    logger.debug("user %s fetching user info of %s", token.id, userId)
     selected_user = session.get(User, userId)
     if not selected_user:
         raise HTTPException(
@@ -205,7 +172,7 @@ async def update_user_endpoint(
     if not await verify_user_permission("users:global:modify", session, token):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="You do not have permission to update user profiles. Use `/me/update` to update your own profile.",
+            detail="You do not have permission to update otheer user profiles.",
         )
 
     logger.debug(
@@ -236,7 +203,7 @@ async def update_user_avatar_endpoint(
     if not await verify_user_permission("users:global:modify", session, token):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="You do not have permission to update user profiles. Use `/me/update/avatar` to update your own profile.",
+            detail="You do not have permission to update user profiles.",
         )
 
     logger.debug("user %s is updating user profile of %s...", token.id, userId)
@@ -260,7 +227,7 @@ async def delete_user_avatar_endpoint(
     if not await verify_user_permission("users:global:modify", session, token):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="You do not have permission to update user profiles. Use `/me/update/avatar` to update your own profile.",
+            detail="You do not have permission to update user profiles.",
         )
 
     logger.debug("user %s is deleting user avatar of %s...", token.id, userId)
@@ -273,33 +240,6 @@ async def delete_user_avatar_endpoint(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="User does not have an avatar set.",
         )
-
-
-@router.patch("/update/me/avatar")
-async def update_self_user_avatar_endpoint(
-    img: UploadFile,
-    token: logged_in_dep,
-    session: Annotated[Session, Depends(get_db_session)],
-) -> UserPublic:
-    """Update a user's avatar.
-
-    Args:
-        img: The new avatar image.
-        token: The access token of the logged-in user.
-        session: The session to the database.
-
-    Returns:
-        The updated user information.
-    """
-
-    if not await verify_user_permission("users:global:modify", session, token):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You do not have permission to update user profiles.",
-        )
-
-    logger.debug("user %s is updating their user profile...", token.id)
-    return await update_user_avatar(token.id, await img.read(), session)
 
 
 @router.patch("/update/role")

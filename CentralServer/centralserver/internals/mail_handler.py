@@ -1,5 +1,6 @@
 import datetime
 import hashlib
+import os
 import smtplib
 from email import encoders
 from email.mime.base import MIMEBase
@@ -8,6 +9,7 @@ from email.mime.text import MIMEText
 
 from centralserver import info
 from centralserver.internals.config_handler import app_config
+from centralserver.internals.exceptions import EmailTemplateNotFoundError
 from centralserver.internals.logger import LoggerFactory
 
 logger = LoggerFactory().get_logger(__name__)
@@ -103,3 +105,26 @@ def send_mail(
 
     except Exception as e:  # pylint: disable=W0718
         logger.error("An unexpected error occurred while sending email: %s", e)
+
+
+def get_template(template_name: str):
+    """Get the content of an email template.
+
+    Args:
+        template_name: The name of the template file to read.
+
+    Returns:
+        The content of the template file as a string.
+    """
+
+    try:
+        with open(
+            os.path.join(app_config.mailing.templates_dir, template_name),
+            "r",
+            encoding=app_config.mailing.templates_encoding,
+        ) as template_file:
+            return template_file.read()
+    except FileNotFoundError:
+        raise EmailTemplateNotFoundError(
+            f"The template '{template_name}' was not found in the templates directory."
+        )
