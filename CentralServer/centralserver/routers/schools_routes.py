@@ -1,3 +1,4 @@
+import datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
@@ -140,4 +141,65 @@ async def get_school_endpoint(
             detail="You do not have permission to view this school.",
         )
 
+    return school
+
+
+@router.patch("/", response_model=School)
+async def update_school_endpoint(
+    updated_school_info: School,
+    token: logged_in_dep,
+    session: Annotated[Session, Depends(get_db_session)],
+) -> School:
+    """Update the information of a specific school."""
+
+    user = session.get(User, token.id)
+    school = session.get(School, updated_school_info.id)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found.",
+        )
+
+    if not school:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="School not found.",
+        )
+
+    required_permission = (
+        "schools:self:modify" if user in school.users else "schools:global:modify"
+    )
+
+    if not await verify_user_permission(required_permission, session, token):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have permission to update this school.",
+        )
+
+    if updated_school_info.name:
+        school.name = updated_school_info.name
+
+    if updated_school_info.address:
+        school.address = updated_school_info.address
+
+    if updated_school_info.coordinates:
+        school.coordinates = updated_school_info.coordinates
+
+    if updated_school_info.phone:
+        school.phone = updated_school_info.phone
+
+    if updated_school_info.email:
+        school.email = updated_school_info.email
+
+    if updated_school_info.website:
+        school.website = updated_school_info.website
+
+    school.lastModified = datetime.datetime.now(datetime.timezone.utc)
+    # school.lastModifiedById = token.id
+
+    session.add(school)
+    session.commit()
+    session.refresh(school)
+
+    logger.debug("user %s updated school with id %s", token.id, school.id)
     return school
