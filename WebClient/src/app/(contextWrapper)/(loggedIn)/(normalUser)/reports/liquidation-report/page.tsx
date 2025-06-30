@@ -2,108 +2,105 @@
 
 import "@mantine/dates/styles.css";
 import { LoadingComponent } from "@/components/LoadingComponent/LoadingComponent";
-
+import { CreatableUnitSelect } from "@/components/CreatableUnitSelect";
+import { SplitButton } from "@/components/SplitButton/SplitButton";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 import dayjs from "dayjs";
-
 import {
     ActionIcon,
+    Badge,
     Button,
     Card,
     Divider,
     FileInput,
     Flex,
     Group,
+    Image,
+    Modal,
     NumberInput,
     Paper,
     ScrollArea,
-    Select,
     Stack,
     Table,
     Text,
     TextInput,
     Textarea,
     Title,
+    Tooltip,
 } from "@mantine/core";
 import { MonthPickerInput, DateInput } from "@mantine/dates";
-import { IconCalendar, IconPlus, IconTrash, IconUpload, IconX, IconHistory } from "@tabler/icons-react";
-import { SplitButton } from "@/components/SplitButton/SplitButton";
+import { useDisclosure } from "@mantine/hooks";
+import {
+    IconCalendar,
+    IconEye,
+    IconFileText,
+    IconPlus,
+    IconTrash,
+    IconUpload,
+    IconX,
+    IconHistory,
+} from "@tabler/icons-react";
 
-const categoryLabels = {
-    "operating-expenses": "Operating Expenses",
-    "administrative-expenses": "Administrative Expenses",
-    "supplementary-feeding-fund": "Supplementary Feeding Fund",
-    "clinic-fund": "Clinic Fund",
-    "faculty-student-development-fund": "Faculty and Student Development Fund",
-    "he-fund": "HE Fund",
-    "school-operations-fund": "School Operations Fund",
-    "revolving-fund": "Revolving Fund",
+const report_type = {
+    operating_expenses: "Operating Expenses",
+    administrative_expenses: "Administrative Expenses",
+    supplementary_feeding_fund: "Supplementary Feeding Fund",
+    clinic_fund: "Clinic Fund",
+    faculty_stud_dev_fund: "Faculty and Student Development Fund",
+    he_fund: "HE Fund",
+    school_operations_fund: "School Operations Fund",
+    revolving_fund: "Revolving Fund",
 };
 
-const QTY_UNIT_CATEGORIES = [
-    "operating-expenses"
+const QTY_FIELDS_REQUIRED = ["operating_expenses", "administrative_expenses"];
+const RECEIPT_FIELDS_REQUIRED = [
+    "supplementary_feeding_fund",
+    "clinic_fund",
+    "faculty_stud_dev_fund",
+    "he_fund",
+    "school_operations_fund",
+    "revolving_fund",
 ];
 
-const RECEIPT_VOUCHER_CATEGORIES = [
-    "revolving-fund",
-    "he-fund",
-    "clinic-fund",
-    "supplementary-feeding-fund",
-    "faculty-student-development-fund",
-    "school-operations-fund"
-];
-
-const ADMINISTRATIVE_CATEGORY = [
-    "administrative-expenses"
-];
-
-const unitOptions = [
-    { value: "pcs", label: "pcs" },
-    { value: "kg", label: "kg" },
-    { value: "gallons", label: "gallons" },
-    { value: "liters", label: "liters" },
-    { value: "boxes", label: "boxes" },
-    { value: "packs", label: "packs" },
-    { value: "bottles", label: "bottles" },
-];
+const defaultUnitOptions = ["pcs", "packs", "boxes", "kg", "liters", "gallons", "bottles"];
 
 interface ExpenseDetails {
-    id: string;
-    date: Date | null;
-    item: string;
-    receiptVoucherNo?: string;
+    id: Date;
+    date: Date;
+    particulars: string;
+    receiptNumber?: string;
     quantity?: number;
     unit?: string;
-    amount: number;
-    total: number;
+    unitPrice: number;
 }
 
 function LiquidationReportContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
-    const category = searchParams.get("category") || "operating-expenses";
-  
+    const category = searchParams.get("category");
+
     const [reportPeriod, setReportPeriod] = useState<Date | null>(new Date());
-    const [notes, setNotes] = useState<string>("");
+    const [unitOptions, setUnitOptions] = useState<string[]>(defaultUnitOptions);
     const [expenseItems, setExpenseItems] = useState<ExpenseDetails[]>([
         {
-            id: "1",
-            date: null,
-            item: "",
-            receiptVoucherNo: "",
-            quantity: 1,
-            unit: "pcs",
-            amount: 0,
-            total: 0
-        }
+            id: new Date(),
+            date: new Date(),
+            particulars: "",
+            receiptNumber: RECEIPT_FIELDS_REQUIRED.includes(category || "") ? "" : undefined,
+            quantity: QTY_FIELDS_REQUIRED.includes(category || "") ? 1 : undefined,
+            unit: QTY_FIELDS_REQUIRED.includes(category || "") ? "" : undefined,
+            unitPrice: 0,
+        },
     ]);
+    const [notes, setNotes] = useState<string>("");
     const [attachments, setAttachments] = useState<File[]>([]);
+    const [previewFile, setPreviewFile] = useState<File | null>(null);
+    const [previewUrl, setPreviewUrl] = useState<string>("");
+    const [opened, { open, close }] = useDisclosure(false);
 
-    // Check category type
-    const hasQuantityUnit = QTY_UNIT_CATEGORIES.includes(category);
-    const hasReceiptVoucher = RECEIPT_VOUCHER_CATEGORIES.includes(category);
-    const forAdministrative = ADMINISTRATIVE_CATEGORY.includes(category);
+    const hasQtyUnit = QTY_FIELDS_REQUIRED.includes(category || "");
+    const hasReceiptVoucher = RECEIPT_FIELDS_REQUIRED.includes(category || "");
 
     const handleClose = () => {
         router.push("/reports");
@@ -111,49 +108,48 @@ function LiquidationReportContent() {
 
     const addNewItem = () => {
         const newItem: ExpenseDetails = {
-            id: Date.now().toString(),
-            date: reportPeriod ? dayjs(reportPeriod).startOf("month").toDate() : null,
-            item: "",
-            receiptVoucherNo: hasReceiptVoucher ? "" : undefined,
-            quantity: hasQuantityUnit ? 1 : undefined,
-            unit: hasQuantityUnit ? "pcs" : undefined,
-            amount: 0,
-            total: 0
+            id: new Date(),
+            date: new Date(),
+            particulars: "",
+            receiptNumber: hasReceiptVoucher ? "" : undefined,
+            quantity: hasQtyUnit ? 1 : undefined,
+            unit: hasQtyUnit ? "" : undefined,
+            unitPrice: 0,
         };
         setExpenseItems([...expenseItems, newItem]);
     };
 
-    const removeItem = (id: string) => {
+    const removeItem = (id: Date) => {
         if (expenseItems.length > 1) {
-            setExpenseItems(expenseItems.filter(item => item.id !== id));
+            setExpenseItems(expenseItems.filter((item) => item.id !== id));
         }
     };
 
-    const updateItem = (
-        id: string,
-        field: keyof ExpenseDetails,
-        value: string | number | Date | null
-    ) => {
-        setExpenseItems(expenseItems.map(item => {
-            if (item.id === id) {
-                const updatedItem = { ...item, [field]: value };
-                
-                // Recalculate total
-                if (hasQuantityUnit) {
-                    if (field === "quantity" || field === "amount") {
-                        updatedItem.total = (updatedItem.quantity || 1) * updatedItem.amount;
-                    }
-                } else {
-                    // Categories without qty, total = amount
-                    if (field === "amount") {
-                        updatedItem.total = updatedItem.amount;
-                    }
+    const updateItem = (id: Date, field: keyof ExpenseDetails, value: string | number | Date) => {
+        setExpenseItems(
+            expenseItems.map((item) => {
+                if (item.id === id) {
+                    const updatedItem = { ...item, [field]: value };
+                    return updatedItem;
                 }
-                
-                return updatedItem;
-            }
-            return item;
-        }));
+                return item;
+            })
+        );
+    };
+
+    const addUnitOption = (newUnit: string) => {
+        if (!unitOptions.includes(newUnit)) {
+            setUnitOptions([...unitOptions, newUnit]);
+        }
+    };
+
+    const getFileTypeInfo = (file: File) => {
+        if (file.type.startsWith("image/")) {
+            return { icon: IconEye, color: "blue", label: "Image" };
+        } else if (file.type === "application/pdf") {
+            return { icon: IconFileText, color: "red", label: "PDF" };
+        }
+        return { icon: IconFileText, color: "gray", label: "File" };
     };
 
     const handleFileUpload = (files: File[]) => {
@@ -162,48 +158,68 @@ function LiquidationReportContent() {
         }
     };
 
+    const handlePreviewFile = (file: File) => {
+        if (file.type.startsWith("image/")) {
+            const url = URL.createObjectURL(file);
+            setPreviewUrl(url);
+            setPreviewFile(file);
+            open();
+        } else if (file.type === "application/pdf") {
+            // For PDF files, open in new tab
+            const url = URL.createObjectURL(file);
+            window.open(url, "_blank");
+        }
+    };
+
+    const handleClosePreview = () => {
+        close();
+        if (previewUrl) {
+            URL.revokeObjectURL(previewUrl);
+            setPreviewUrl("");
+        }
+        setPreviewFile(null);
+    };
+
     const removeAttachment = (index: number) => {
         setAttachments(attachments.filter((_, i) => i !== index));
     };
 
     const calculateTotalAmount = () => {
-        return expenseItems.reduce((sum, item) => sum + item.total, 0);
+        return expenseItems.reduce((sum, item) => {
+            if (hasQtyUnit) {
+                return sum + (item.quantity || 1) * item.unitPrice;
+            } else {
+                return sum + item.unitPrice;
+            }
+        }, 0);
+    };
+
+    const calculateItemTotal = (item: ExpenseDetails) => {
+        if (hasQtyUnit) {
+            return (item.quantity || 1) * item.unitPrice;
+        } else {
+            return item.unitPrice;
+        }
     };
 
     const handleSubmitReport = () => {
-        console.log("Submitting liquidation report:", {
-            category,
-            month: reportPeriod ? dayjs(reportPeriod).format("MMMM YYYY") : null,
-            items: expenseItems,
-            notes,
-            attachments,
-            total: calculateTotalAmount(),
-            status: "submitted"
-        });
+        console.log("Submitting liquidation report...");
     };
 
     const handleSaveDraft = () => {
-        console.log("Saving draft liquidation report:", {
-            category,
-            month: reportPeriod ? dayjs(reportPeriod).format("MMMM YYYY") : null,
-            items: expenseItems,
-            notes,
-            attachments,
-            total: calculateTotalAmount(),
-            status: "draft"
-        });
-    }
+        console.log("Saving draft liquidation report...");
+    };
 
     const handlePreview = () => {
-        console.log("Previewing liquidation report");
-    }      
+        console.log("Previewing liquidation report...");
+    };
 
     const getDateRange = () => {
         if (!reportPeriod) return { minDate: undefined, maxDate: undefined };
-        
+
         const startOfMonth = dayjs(reportPeriod).startOf("month").toDate();
         const endOfMonth = dayjs(reportPeriod).endOf("month").toDate();
-        
+
         return { minDate: startOfMonth, maxDate: endOfMonth };
     };
 
@@ -213,18 +229,14 @@ function LiquidationReportContent() {
         <div className="max-w-7xl mx-auto p-4 sm:p-6">
             <Stack gap="lg">
                 {/* Header */}
-                <Flex
-                    justify="space-between"
-                    align="center"
-                    className="flex-col sm:flex-row gap-4"
-                >
+                <Flex justify="space-between" align="center" className="flex-col sm:flex-row gap-4">
                     <Group gap="md">
                         <div className="p-2 bg-blue-100 rounded-lg">
                             <IconHistory size={28} />
                         </div>
                         <div>
                             <Title order={2} className="text-gray-800">
-                                {categoryLabels[category as keyof typeof categoryLabels]}
+                                {report_type[category as keyof typeof report_type] || "Report Category Not Found"}
                             </Title>
                             <Text size="sm" c="dimmed">
                                 Create and manage expense liquidation
@@ -244,22 +256,12 @@ function LiquidationReportContent() {
 
                 {/* Month Selection */}
                 <Card withBorder>
-                    <Group
-                        justify="space-between"
-                        align="center"
-                        className="flex-col sm:flex-row gap-4"
-                    >
+                    <Group justify="space-between" align="center" className="flex-col sm:flex-row gap-4">
                         <Text fw={500}>Report Period</Text>
                         <MonthPickerInput
                             placeholder="Select month"
                             value={reportPeriod}
-                            onChange={(value) => {
-                                if (typeof value === "string") {
-                                    setReportPeriod(value ? new Date(value) : null);
-                                } else {
-                                    setReportPeriod(value);
-                                }
-                            }}
+                            onChange={(value) => setReportPeriod(value ? new Date(value) : null)}
                             leftSection={<IconCalendar size={16} />}
                             className="w-full sm:w-64"
                             valueFormat="MMMM YYYY"
@@ -270,10 +272,7 @@ function LiquidationReportContent() {
 
                 {/* Item Details Table */}
                 <Card withBorder>
-                    <Group
-                        justify="space-between"
-                        align="center" mb="md"
-                    >
+                    <Group justify="space-between" align="center" mb="md">
                         <Text fw={500}>Item Details</Text>
                         <Button
                             leftSection={<IconPlus size={16} />}
@@ -287,55 +286,35 @@ function LiquidationReportContent() {
 
                     <div className="overflow-x-auto">
                         <ScrollArea>
-                            <Table
-                                striped
-                                highlightOnHover
-                                className={`min-w-full ${
-                                    hasQuantityUnit ? "min-w-[800px]" : 
-                                    hasReceiptVoucher ? "min-w-[600px]" : 
-                                    forAdministrative ? "min-w-[600px]" :
-                                    "min-w-[500px]"
-                                }`}
-                            >
+                            <Table striped highlightOnHover>
                                 <Table.Thead>
                                     <Table.Tr>
                                         <Table.Th className="w-44">Date</Table.Th>
-                                        {hasReceiptVoucher && (
-                                            <Table.Th className="w-40">Receipt/Voucher No.</Table.Th>
-                                        )}
-                                        <Table.Th className={
-                                            hasQuantityUnit ? "w-52" : 
-                                            hasReceiptVoucher ? "w-64" : 
-                                            forAdministrative ? "w-64" :
-                                            "w-80"
-                                        }>
-                                            {hasReceiptVoucher ? "Item" : "Particulars"}
-                                        </Table.Th>
-                                        {hasQuantityUnit && (
+                                        {hasReceiptVoucher && <Table.Th className="w-40">Receipt/Voucher No.</Table.Th>}
+                                        <Table.Th>{hasReceiptVoucher ? "Item" : "Particulars"}</Table.Th>
+                                        {hasQtyUnit && (
                                             <>
                                                 <Table.Th className="w-32">Quantity</Table.Th>
                                                 <Table.Th className="w-32">Unit</Table.Th>
                                             </>
                                         )}
                                         <Table.Th className="w-36">Amount</Table.Th>
-                                        {(hasQuantityUnit || forAdministrative) && (
-                                            <Table.Th className="w-36">Total</Table.Th>
-                                        )}
+                                        {hasQtyUnit && <Table.Th className="w-36">Total</Table.Th>}
                                         <Table.Th className="w-16"></Table.Th>
                                     </Table.Tr>
                                 </Table.Thead>
                                 <Table.Tbody>
                                     {expenseItems.map((item) => (
-                                        <Table.Tr key={item.id}>
+                                        <Table.Tr key={item.id.toISOString()}>
                                             <Table.Td>
                                                 <DateInput
                                                     className="w-full"
                                                     placeholder="Select date"
                                                     value={item.date}
-                                                    onChange={(date) => updateItem(item.id, "date", date)}
+                                                    onChange={(date) => updateItem(item.id, "date", date || new Date())}
                                                     minDate={minDate}
                                                     maxDate={maxDate}
-                                                    clearable
+                                                    date={reportPeriod || new Date()}
                                                     required
                                                 />
                                             </Table.Td>
@@ -344,8 +323,10 @@ function LiquidationReportContent() {
                                                     <TextInput
                                                         className="w-full"
                                                         placeholder="Enter receipt/voucher no."
-                                                        value={item.receiptVoucherNo || ""}
-                                                        onChange={(e) => updateItem(item.id, "receiptVoucherNo", e.currentTarget.value)}
+                                                        value={item.receiptNumber || ""}
+                                                        onChange={(e) =>
+                                                            updateItem(item.id, "receiptNumber", e.currentTarget.value)
+                                                        }
                                                     />
                                                 </Table.Td>
                                             )}
@@ -353,29 +334,32 @@ function LiquidationReportContent() {
                                                 <TextInput
                                                     className="w-full"
                                                     placeholder="Enter item description"
-                                                    value={item.item}
-                                                    onChange={(e) => updateItem(item.id, "item", e.currentTarget.value)}
+                                                    value={item.particulars}
+                                                    onChange={(e) =>
+                                                        updateItem(item.id, "particulars", e.currentTarget.value)
+                                                    }
                                                     required
                                                 />
                                             </Table.Td>
-                                            {hasQuantityUnit && (
+                                            {hasQtyUnit && (
                                                 <>
                                                     <Table.Td>
                                                         <NumberInput
                                                             className="w-full"
                                                             placeholder="Qty"
                                                             value={item.quantity}
-                                                            onChange={(value) => updateItem(item.id, "quantity", Number(value) || 1)}
+                                                            onChange={(value) =>
+                                                                updateItem(item.id, "quantity", Number(value) || 1)
+                                                            }
                                                             min={1}
                                                         />
                                                     </Table.Td>
                                                     <Table.Td>
-                                                        <Select
-                                                            className="w-full"
-                                                            placeholder="Unit"
+                                                        <CreatableUnitSelect
                                                             value={item.unit}
-                                                            onChange={(value) => updateItem(item.id, "unit", value || "pcs")}
-                                                            data={unitOptions}
+                                                            onChange={(value) => updateItem(item.id, "unit", value)}
+                                                            unitOptions={unitOptions}
+                                                            onAddUnit={addUnitOption}
                                                         />
                                                     </Table.Td>
                                                 </>
@@ -383,17 +367,19 @@ function LiquidationReportContent() {
                                             <Table.Td>
                                                 <NumberInput
                                                     className="w-full"
-                                                    placeholder="0.00"
-                                                    value={item.amount}
-                                                    onChange={(value) => updateItem(item.id, "amount", Number(value) || 0)}
+                                                    placeholder=""
+                                                    value={item.unitPrice}
+                                                    onChange={(value) =>
+                                                        updateItem(item.id, "unitPrice", Number(value) || 0)
+                                                    }
                                                     min={0}
                                                     leftSection="₱"
                                                     hideControls
                                                 />
                                             </Table.Td>
-                                            {(hasQuantityUnit || forAdministrative) && (
+                                            {hasQtyUnit && (
                                                 <Table.Td>
-                                                    <Text fw={500}>₱{item.total.toFixed(2)}</Text>
+                                                    <Text fw={500}>₱{calculateItemTotal(item).toFixed(2)}</Text>
                                                 </Table.Td>
                                             )}
                                             <Table.Td>
@@ -415,7 +401,7 @@ function LiquidationReportContent() {
                     </div>
 
                     <Divider my="md" />
-                  
+
                     <Group justify="flex-end">
                         <div className="bg-gray-50 p-4 rounded-lg">
                             <Text size="lg" fw={700} className="text-gray-800">
@@ -443,7 +429,6 @@ function LiquidationReportContent() {
                 <Card withBorder>
                     <Stack gap="md">
                         <Text fw={500}>Attachments</Text>
-                      
                         <FileInput
                             placeholder="Add attachment"
                             leftSection={<IconUpload size={18} />}
@@ -457,25 +442,64 @@ function LiquidationReportContent() {
                         {attachments.length > 0 && (
                             <div>
                                 <Text size="sm" c="dimmed" mb="xs">
-                                    Uploaded files:
+                                    Uploaded files ({attachments.length}):
                                 </Text>
                                 <Stack gap="xs">
-                                    {attachments.map((file, index) => (
-                                        <Paper key={index} p="xs" withBorder className="hover:bg-gray-50">
-                                            <Group justify="space-between">
-                                                <Text size="sm">{file.name}</Text>
-                                                <ActionIcon
-                                                    size="sm"
-                                                    color="red"
-                                                    variant="subtle"
-                                                    onClick={() => removeAttachment(index)}
-                                                    className="hover:bg-red-50"
-                                                >
-                                                    <IconX size={12} />
-                                                </ActionIcon>
-                                            </Group>
-                                        </Paper>
-                                    ))}
+                                    {attachments.map((file, index) => {
+                                        const { icon: Icon, color, label } = getFileTypeInfo(file);
+                                        const isImage = file.type.startsWith("image/");
+                                        const isPDF = file.type === "application/pdf";
+
+                                        return (
+                                            <Paper key={index} p="sm" withBorder className="hover:bg-gray-50">
+                                                <Group justify="space-between">
+                                                    <Group gap="sm">
+                                                        <div className="flex items-center gap-2">
+                                                            <Icon size={16} color={color} />
+                                                            <Badge variant="light" color={color} size="xs">
+                                                                {label}
+                                                            </Badge>
+                                                        </div>
+                                                        <div>
+                                                            <Text size="sm" fw={500}>
+                                                                {file.name}
+                                                            </Text>
+                                                            <Text size="xs" c="dimmed">
+                                                                {(file.size / 1024).toFixed(1)} KB
+                                                            </Text>
+                                                        </div>
+                                                    </Group>
+
+                                                    <Group gap="xs">
+                                                        {(isImage || isPDF) && (
+                                                            <Tooltip label={`Preview ${label.toLowerCase()}`}>
+                                                                <ActionIcon
+                                                                    size="sm"
+                                                                    variant="light"
+                                                                    color="blue"
+                                                                    onClick={() => handlePreviewFile(file)}
+                                                                    className="hover:bg-blue-50"
+                                                                >
+                                                                    <IconEye size={14} />
+                                                                </ActionIcon>
+                                                            </Tooltip>
+                                                        )}
+                                                        <Tooltip label="Remove file">
+                                                            <ActionIcon
+                                                                size="sm"
+                                                                color="red"
+                                                                variant="light"
+                                                                onClick={() => removeAttachment(index)}
+                                                                className="hover:bg-red-50"
+                                                            >
+                                                                <IconX size={14} />
+                                                            </ActionIcon>
+                                                        </Tooltip>
+                                                    </Group>
+                                                </Group>
+                                            </Paper>
+                                        );
+                                    })}
                                 </Stack>
                             </div>
                         )}
@@ -483,26 +507,33 @@ function LiquidationReportContent() {
                 </Card>
 
                 {/* Action Buttons */}
-                <Group
-                    justify="flex-end"
-                    gap="md"
-                >
-                    <Button
-                        variant="outline"
-                        onClick={handleClose}
-                        className="hover:bg-gray-100">
-                            Cancel
+                <Group justify="flex-end" gap="md">
+                    <Button variant="outline" onClick={handleClose} className="hover:bg-gray-100">
+                        Cancel
                     </Button>
                     <SplitButton
                         onSubmit={handleSubmitReport}
                         onSaveDraft={handleSaveDraft}
                         onPreview={handlePreview}
                         className="bg-blue-600 hover:bg-blue-700"
-                        disabled={!reportPeriod || expenseItems.some(item => !item.date || !item.item)}
+                        disabled={!reportPeriod || expenseItems.some((item) => !item.date || !item.particulars)}
                     >
                         Submit Report
                     </SplitButton>
                 </Group>
+
+                <Modal opened={opened} onClose={handleClosePreview} title={previewFile?.name} size="lg" centered>
+                    {previewUrl && previewFile?.type.startsWith("image/") && (
+                        <div className="flex justify-center">
+                            <Image
+                                src={previewUrl}
+                                alt={previewFile.name}
+                                fit="contain"
+                                style={{ maxHeight: "70vh" }}
+                            />
+                        </div>
+                    )}
+                </Modal>
             </Stack>
         </div>
     );
